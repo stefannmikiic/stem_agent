@@ -1,0 +1,4 @@
+openai
+pytest
+fastapi
+uvicorn[standard]
