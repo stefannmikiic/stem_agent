@@ -6,7 +6,7 @@ A proof-of-concept self-evolving AI agent that learns and refines its QA strateg
 
 ### Prerequisites
 - Python 3.10+
-- OpenAI API key (request from: denis.domanskii@jetbrains.com)
+- OpenAI API key
 
 ### Installation
 
