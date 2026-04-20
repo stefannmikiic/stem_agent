@@ -1,185 +1,61 @@
-# ✅ REŠENJE: Spec-Compliant Learning System
+# Solution Explanation
 
-## Problem Identifikovan
-Korisnikov output je pokazao:
-```
-Score: 0 → 0 → 0
-Issues: ['fail', 'error'] svaki put
-Total rules: 6
-```
+## What was going wrong
 
-**Root Cause**: Testovi su bili **protivurečni** jer nije bilo jasne specifikacije šta `divide()` i `get_element()` trebaju da rade.
+The score was stuck at 0 because the tests were fighting each other. There was no clear rule for what `divide()` and `get_element()` should do, so one test would expect one result and another test would expect the opposite.
 
-Primeri konflikta:
-- Test 1 očekuje: `divide(10, 2) = 5` (int)
-- Test 2 očekuje: `divide(10, 2) = 5.0` (float)
-- Kod je fiksovan da zadovolji jedan → drugi padne
-- **Beskonačna petlja na score 0**
+For example:
+- one test expected `divide(10, 2)` to return `5`
+- another test expected the same call to return `5.0`
 
----
+That meant the code could never satisfy everything at once. The agent kept fixing one case and breaking another.
 
-## Rešenje: Tri Nove Komponente
+## What fixed it
 
-### 1. 📋 FUNCTION_SPEC.md
-**Fajl koji definiše tačno šta svaka funkcija treba da radi**
+I added a clear specification file, `FUNCTION_SPEC.md`, that says exactly what each function should do. That gave the test generator and the code fixer one shared source of truth.
 
-```markdown
-divide(a, b):
-  - Accepts: int, float (not bool)
-  - Returns int if both are int AND exact division
-  - Returns float otherwise
-  - Raises ZeroDivisionError if b == 0
-  - Raises TypeError for invalid types
+I also updated the sample code so it follows that spec directly. After that, the agent no longer had to guess whether the result should be an `int`, `float`, or an error.
 
-get_element(arr, index):
-  - Accepts: list, tuple, str, anything with __getitem__ (NOT dict)
-  - Index must be int
-  - Raises TypeError for invalid index types
-  - Raises IndexError for out of bounds
-```
+## Why this mattered
 
-**Benefit**: Test generator i code fixer sada znaju što raditi - nema više konfuzije.
+Once the spec existed, the whole loop became much more stable:
+- tests were generated around the same rules
+- fixes were based on the same rules
+- rule learning started to produce useful guidance instead of noise
 
-### 2. ✅ Spec-Compliant sample_code.py
-**Kod koji JE ISPRAVAN PREMA SPEC-U**
+## Result
 
-```python
-def divide(a, b):
-    # Type validation
-    if isinstance(a, bool) or isinstance(b, bool):
-        raise TypeError(...)
-    if not isinstance(a, (int, float)) or not isinstance(b, (int, float)):
-        raise TypeError(...)
-    
-    # Zero check
-    if b == 0:
-        raise ZeroDivisionError("division by zero")
-    
-    result = a / b
-    
-    # Return int if exact division with both ints
-    if isinstance(a, int) and isinstance(b, int) and result == int(result):
-        return int(result)
-    return result
-```
+Before the spec, the agent kept looping with failed tests and a score of 0.
 
-**Benefit**: Kod počinje **korektno** - više nema "fiks po slučajnosti".
+After the spec, the run became much more consistent and the score started to move upward instead of staying stuck.
 
-### 3. 🎯 Spec-Aware Test Generator & Code Fixer
-**Oba sada učitavaju FUNCTION_SPEC.md i koriste ga kao guidance**
+## Main lesson
 
-test_generator.py:
-```python
-# Load spec
-with open("FUNCTION_SPEC.md") as f:
-    spec = f.read()
+The system could not learn until it had a clear definition of success. The issue was not just the model or the code. The bigger problem was that the parts of the system were not agreeing on what “correct” meant.
 
-# Pass to LLM
-prompt = f"...FUNCTION SPECIFICATION:\n{spec}..."
-# LLM sada zna šta treba da testira
-```
+## How to use it
 
-code_fixer.py:
-```python
-# Load spec
-with open("FUNCTION_SPEC.md") as f:
-    spec = f.read()
+Run the pipeline with:
 
-# Pass to LLM
-prompt = f"...FUNCTION SPECIFICATION (source of truth):\n{spec}..."
-# LLM sada zna šta treba da fiksuje
-```
-
-**Benefit**: Testovi i fixes su sada **koherentni** jer se oba vode spec-om.
-
----
-
-## Rezultat: DRAMATIČNA RAZLIKA
-
-### PRIJE (bez spec-a):
-```
-Iteration 1: 42 passed, 1 FAILED → Score: 0
-Iteration 2: 30 passed, 2 FAILED → Score: 0
-Iteration 3: 25 passed, 2 FAILED → Score: 0
-────────────────────────────────
-Best score: -1 (NIKADA PASS!)
-```
-
-### NAKON (sa spec-om):
-```
-Iteration 1: test collection error (LLM generiše loš test)
-Iteration 2: 41 PASSED ✅ → Score: 52
-Iteration 3: 43 PASSED ✅ → Score: 52
-────────────────────────────────
-Best score: 52 (ODMAH FUNKCIONIŠE!)
-Convergence: 0% → 100% (jedan run!)
-```
-
----
-
-## Ključna Naučena Lekcija
-
-> **Sistem ne može da uči bez jasne specifikacije šta "dobro" znači.**
-
-Bez spec-a:
-- Testovi su nasumični
-- Kod se menja haotično
-- Score osciluje jer nema konsenzusa
-
-Sa spec-om:
-- Testovi su ciljani (prema spec-u)
-- Kod se popravljas razlogom (prema spec-u)
-- Score se penka jer su svi dogovoreni
-
----
-
-## Kako Se Koristi
-
-### Za Sledeće Pokretanje:
 ```bash
 python main.py
 ```
 
-Program će:
-1. Učitati FUNCTION_SPEC.md kao guidance
-2. Generisati testove prema spec-u
-3. Pokrenuti testove
-4. Ako padnu → ekstraktuj rule prema spec-u
-5. Ažuriraj kod prema spec-u i learned rules-u
-6. Ponovi
+The agent will:
+1. Read the spec
+2. Generate tests
+3. Run the tests
+4. Learn from failures
+5. Update the code if needed
+6. Repeat for the next iteration
 
-### Za Proširenje:
-Ako trebaš da dodam nove funkcije:
-1. Dodaj spec u FUNCTION_SPEC.md
-2. Implementiraj funkciju prema spec-u
-3. Ostalo radi automatski (test generation, rule learning, fixing)
+## Files changed
 
----
+- `FUNCTION_SPEC.md` - the source of truth for function behavior
+- `test_generator.py` - now reads the spec
+- `code_fixer.py` - now uses the spec when proposing fixes
+- `tasks/sample_code.py` - updated to match the spec
 
-## Fajlovi Koji Su Se Promenili
+## Bottom line
 
-✨ **Novi**:
-- `FUNCTION_SPEC.md` - Specifikacija za divide() i get_element()
-- `test_rule_learning.py` - Demo rule extraction-a (opciono)
-
-🔧 **Ažurirani**:
-- `test_generator.py` - Učitava spec, koristi ga u prompts
-- `code_fixer.py` - Učitava spec, koristi ga kao "source of truth"
-- `tasks/sample_code.py` - Spec-compliant implementacija
-- `.gitignore` - Zaštita API ključa
-- `APPROACH_AND_RESULTS.md` - Dokumentacija (vec postoji)
-- `README.md` - Setup guide (već postoji)
-
----
-
-## ✅ Zaključak
-
-Sistem JE OK i radi - problem je bio nedostatak **konsenzusa** oko šta treba da se testira. Spec je taj konsenzus.
-
-Sa spec-om:
-- ✅ Test generation je svrhovit
-- ✅ Code fixing je smislen
-- ✅ Rule learning je koherentan
-- ✅ Score se penka kome treba
-
-**System is now production-ready for spec-guided learning.**
+The system was not broken in a deep way. It was missing agreement. Once I added a clear spec, the agent had a consistent target and the whole pipeline started behaving much better.

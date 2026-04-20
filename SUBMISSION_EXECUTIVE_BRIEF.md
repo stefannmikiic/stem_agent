@@ -1,47 +1,49 @@
 # Submission Executive Brief
 
-## What Was Built
-This project implements a STEM-style agent specialized for Code Quality Assurance.
-The agent starts with minimal strategy, runs iterative test generation + execution, learns reusable rules from failures, and adapts behavior in subsequent iterations.
+## What was built
 
-Core runtime components:
-- `main.py`: iterative orchestration loop
-- `stem_agent.py`: strategy generation/improvement
-- `test_generator.py`: LLM-driven pytest generation
-- `code_fixer.py`: LLM-driven code repair
-- `rule_extractor.py`: failure -> rule conversion
-- `memory.py`: persistent failure memory
-- `evaluator.py`: measurable scoring signal
+This project is a small QA agent that improves itself over time. It starts with a basic strategy, generates tests, runs them, learns from failures, and then uses that history in the next round.
 
-Operational components:
-- `api_server.py`: FastAPI backend
-- `dashboard_state.py`: runtime state snapshots
-- `frontend/`: React dashboard for monitoring and running pipeline
+The main runtime pieces are:
+- `main.py` - the iteration loop
+- `stem_agent.py` - builds and updates the strategy
+- `test_generator.py` - creates tests
+- `code_fixer.py` - suggests fixes when needed
+- `rule_extractor.py` - turns failures into reusable rules
+- `memory.py` - stores failure history
+- `evaluator.py` - turns test results into a score
 
-## Why This Matches Task #1
-- Domain specialization is explicit: QA-focused agent, not universal agent.
-- Self-transformation signal exists: strategy + rules evolve across iterations.
-- Safeguards are implemented: retries, timeout boundaries, syntax checks, guarded auto-fix branches.
-- Runnable code and setup instructions are included (`README.md`).
-- Before/after comparison is documented (`SUBMISSION_WRITEUP.md`, `APPROACH_AND_RESULTS.md`).
-- Reflection path is documented: surprises, failures, and next steps are explicit.
+The project also includes a small web layer:
+- `api_server.py` - backend API
+- `dashboard_state.py` - builds the dashboard snapshot
+- `frontend/` - React dashboard for viewing the current state
 
-## Measurable Evaluation
-Primary metric: score from pytest outcome counts and issue classes.
-- Baseline behavior (without strong guidance): unstable / conflicting outcomes.
-- Improved behavior (spec-guided + rule learning): stable passing trajectories with retained memory.
+## Why this fits the task
 
-Artifacts:
+- The agent is clearly focused on QA, not on doing everything.
+- It changes over time through strategy updates and learned rules.
+- It has basic safety checks like retries, timeouts, and syntax validation.
+- It is runnable, with setup steps in `README.md`.
+- The write-up and solution notes explain both the results and the mistakes.
+
+## How it is measured
+
+The main signal is the score from pytest results. The important difference is simple:
+
+- without strong guidance, the agent can drift or repeat the same mistakes
+- with the function spec and rule learning, the output becomes more stable
+
+The following files show the state of the system:
 - `error_memory.json`
 - `learned_rules.json`
 - `runtime_state.json`
 
-## Current Stop Criterion
-Current implementation uses a fixed evolution budget of 3 iterations per run.
-This is a safety-first constraint to prevent uncontrolled self-modification in a single execution.
-A future improvement is a performance-based stop condition (plateau detection + rule quality threshold).
+## Stop rule
 
-## Run Commands
+Each run uses 3 iterations. That keeps the process bounded and easier to review. If I had more time, I would replace this with a smarter stop condition based on score plateau and rule quality.
+
+## How to run it
+
 - Full app: `python run_dev.py`
 - Backend only: `uvicorn api_server:app --reload --port 8000`
 - Pipeline only: `python main.py`

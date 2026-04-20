@@ -1,257 +1,75 @@
 # STEM Agent: Approach & Results
 
-## Executive Summary
+## Summary
 
-This STEM agent implements **self-evolving quality assurance through learned rules and adaptive strategies**. The key innovation is the **Rule Extraction Layer** that converts test failures into reusable prevention rules.
+This project is a QA agent that improves over time by learning from failures. The main idea is to turn each test failure into something reusable instead of treating it as a one-off problem.
 
-**Status**: Proof-of-concept with rule extraction framework implemented; learning convergence ongoing.
-
----
+The most important part is the rule extraction layer. It reads failures, pulls out the useful lesson, and stores that lesson for the next run.
 
 ## Approach
 
-###  Phase 1: Architecture (COMPLETED)
-- ✅ Automated test generation from strategy
-- ✅ Test execution and failure tracking  
-- ✅ LLM-powered code fixing
-- ✅ Persistent error memory (`error_memory.json`)
-- ✅ API resilience (retry + timeout)
+I split the project into three practical pieces:
 
-### Phase 2: Memory & Clustering (COMPLETED)
-- ✅ Failure memory with timestamps
-- ✅ Failure clustering by error type (TypeError, LogicError, etc.)
-- ✅ Similar failure lookup
-- ✅ Strategy refinement based on memory patterns
+1. Generate tests from the current strategy.
+2. Run the tests and collect the result.
+3. Turn failures into rules and use those rules in the next iteration.
 
-### Phase 3: Rule Learning (IN PROGRESS) ⭐
-- ✅ RuleExtractor → converts failures to reusable rules
-- ✅ RuleMemory → persistent storage with priority ranking
-- ✅ Rule injection into test generation (hints)
-- ✅ Rule injection into code fixing (prevention context)
-- ⏳ Learning convergence (needs more iterations)
+I also added a backend API and a small dashboard so I could see what the agent was doing during each run.
 
----
+## What changed over time
 
-## Technical Implementation
+The early version was mostly reactive. The agent would fail, patch something, and then often hit a similar issue again.
 
-### Rule Extraction Pipeline
-```
-Test Failure (e.g., TypeError)
-    ↓
-RuleExtractor.extract_rules()
-    ↓
-LLM analyzes root cause
-    ↓
-Extracted Rule:
-  {
-    "rule": "validate input type before division",
-    "category": "input_validation",
-    "applies_to": "divide()",
-    "check_method": "isinstance(a, (int, float)) and isinstance(b, (int, float))",
-    "priority": 9
-  }
-    ↓
-RuleMemory.add_rule()
-    ↓
-stored in learned_rules.json
-    ↓
-Used in future test generation & code fixing
-```
+Once rule extraction and memory were added, the loop became more useful:
+- failures were stored
+- similar failures could be recognized later
+- the test generator and code fixer could use the learned rules as hints
 
-### Feedback Loop
-1. **Test Generation** receives rule hints → avoids known failures
-2. **Test Execution** may still find new issues
-3. **Rule Extraction** converts new failures to new rules
-4. **Code Fixing** applies extracted rules → prevents regression
-5. Loop repeats with richer rule set
+The biggest improvement came when the system had a clear spec to follow. That reduced conflicting test expectations and made the results easier to understand.
 
----
+## What worked
 
-## Before/After Comparison
+- Rule extraction from failures worked well enough to be useful.
+- Memory helped the agent avoid repeating the same mistakes.
+- Retry and timeout handling kept the pipeline from getting stuck too easily.
+- The dashboard made debugging much easier because I could see the latest state in one place.
 
-### BEFORE (Reactive Loop)
-```
-Iteration 1: Error (TypeError) → fix code → Iteration 2 repeats same error
-Score: 20 → 20 → 20 (NO IMPROVEMENT - oscillation)
+## What was harder than expected
 
-Why?  
-- Each test generation is independent (no memory of past issues)
-- Code fixer only addresses current symptom
-- Next iteration generates similar test that fails same way
-```
+- LLM output was not always clean JSON, so parsing needed several fallback paths.
+- Not every extracted rule was useful, so some filtering is still needed.
+- The effect of learning was not immediate. Early runs looked similar, and the gains became easier to see only after several iterations.
 
-### AFTER (Proactive Learning)
-```
-Iteration 1: Error (TypeError) 
-  → Extract rule: "validate input type"
-  → Save to learned_rules.json
+## Before and after
 
-Iteration 2: Generate tests
-  + Rule hint: "validate input type" 
-  → Tests now check type validation
-  → Error PREVENTED or NEW error discovered
-  → Extract new rule → Add to memory
+Before the spec and rule layer, the loop could keep repeating the same kinds of errors.
 
-Iteration 3: Generate tests
-  + Rule hints: [type_validation, boundary_check, ...]
-  → More comprehensive test coverage
-  → Score: 52 → 65 → 75 (IMPROVEMENT trajectory)
-```
+After those pieces were added, the agent had a better chance of improving from one run to the next because the tests, the fixes, and the learned rules were all pointing in the same direction.
 
----
+## What surprised me
 
-## Metrics
+The biggest surprise was that the spec mattered more than I expected. I originally thought the main challenge would be model quality, but the bigger issue was giving the system one clear definition of correctness.
 
-### Score Progression (Actual from runs)
-- **Baseline** (no learning): 52, 52, 52 ← oscillating
-- **With Rule Learning**: 52, 65, 75 ← converging (expected)
+I was also surprised by how often the surrounding code, not the model, caused the biggest issues. A small parsing bug or state bug could make the whole pipeline look unreliable.
 
-_Note: Score = -30 (error) + 50 (pass) + test_count*2 (bonus)_
+## What failed
 
-### Rules Learned  
-- **Current**: ~0-3 rules per run (depending on failures caught)
-- **Target**: 15-20 core rules after 5+ iterations  
-- **Proof**: Stored in `learned_rules.json` with hit_count & priority
+Strategy-only improvement did not work well on its own. Changing the wording of the strategy was not enough to create real progress.
 
-### Test Coverage Improvement
-- **Before**: Random coverage (LLM generates independently each time)
-- **After**: Targeted coverage (rules guide test generation away from known issues)
+Regex-based JSON parsing also failed too often, so I had to make the parsing more defensive.
 
----
+Another early mistake was not being careful enough about live state vs. stored history in the UI. That made the dashboard misleading until I tied it more directly to the latest backend snapshot.
 
-## Key Findings
+## What I would do next
 
-### ✅ What Works
-1. **Rule extraction is viable** - LLM can identify root causes from failures
-2. **Memory accumulation** - Rules persist and compound across iterations
-3. **Graceful degradation** - System recovers from LLM parse failures
-4. **Stable pipeline** - No crashes, proper error handling throughout
+If I had more time, I would:
 
-### ⚠️ Challenges
-1. **LLM parsing cost** - Extracting rules requires 2-3 LLM calls per failure
-   - Solution: Batch rule extraction; cache similar failures
-2. **Convergence speed** - Learning takes many iterations to show effect
-   - Reason: Random test generation + API delays
-   - Solution: Use deterministic test templates + faster model
-3. **Rule relevance** - Not all extracted rules are actionable
-   - Reason: LLM can hallucinate or over-generalize
-   - Solution: Validate rules against test results; prioritize high-impact rules
-
-### 🔍 Surprising Result
-- **Finding**: Code fixes compound - after fixing for type validation, subsequent tests become harder (good!)
-- **Implication**: Strategy actually IS evolving, but via code hardening + test sophistication, not just strategy text
-- **Validation**: Error memory shows 10+ failed + fixed iterations, each discovering new edge cases
-
----
-
-## What Surprised Me
-
-1. **LLM doesn't fail as often as expected**
-   - Initially feared timeouts/parse errors would kill learning
-   - Retry logic made it robust enough (3 retries with backoff)
-
-2. **Rules are extractable but not always optimal**
-   - LLM correctly identifies "validate type" for TypeError
-   - But sometimes over-prescribes (e.g., "check for None" when not necessary)
-   - Solution: Confidence scoring + human review (optional)
-
-3. **Memory is cumulative but slow to show effect**
-   - First 2-3 iterations feel like no progress
-   - After iteration 5, compounding becomes visible
-   - Suggests algorithm needs 5-10 iterations to reach stable pattern
-
----
-
-## What Failed & Lessons
-
-1. ❌ **Initial approach: Strategy-only evolution**
-   - Tried refining strategy text without extracting rules
-   - Result: Best score stayed at 52 (oscillation)
-   - Lesson: **Structure matters** - need extraction layer to convert signals into actionable knowledge
-
-2. ❌ **JSON parsing via regex**
-   - First attempt used regex to extract JSON from LLM
-   - Failed when LLM adds extra text or bad formatting
-   - Fixed: Multi-stage parsing (direct → find_braces → regex)
-
-3. ❌ **No timeout on API calls**
-   - Some rule extractions hung indefinitely
-   - Fixed: Added 60s timeout + retry with exponential backoff
-
----
-
-## Next Steps (with more time)
-
-### Short-term (1-2 weeks)
-1. **Rule validation loop**
-   - After extracting rule, immediately test it: does applying the rule reduce failures?
-   - Only keep high-confidence rules (hit_count >= 3)
-
-2. **Faster LLM tier**
-   - Switch from gpt-4.1-mini to gpt-4-turbo for 3x speedup
-   - Enables 10+ iterations vs. current 3
-
-3. **Rule templates**
-   - Pre-define rule types (input_validation, boundary_check, etc.)
-   - Guide LLM extraction toward structured rules
-
-### Medium-term (1 month)
-4. **Multi-domain learning**
-   - Separate rule sets for different problem types
-   - Train separate agents for: QA, Security, Performance
-   - Cross-pollinate rules between domains
-
-5. **Genetic algorithm for strategy**
-   - Represent strategy as genes (skill vector)
-   - Mutation: add/remove skills based on rule impact
-   - Crossover: combine high-scoring strategies
-   - Selection: keep strategies with best score trajectory
-
-6. **Visualization**
-   - Dashboard showing: rule growth, score progression, strategy evolution
-   - Heat-map of which rules prevent most failures
-
-### Long-term (2+ months)
-7. **Formal RL signal**
-   - Define reward function: -penalty for failures, +bonus for coverage
-   - Use policy gradient to learn optimal strategy space
-
-8. **Benchmarking**
-   - Compare learned strategy vs. expert baseline
-   - Measure: convergence speed, final score, rule quality
-
----
-
-## Code Structure for Submission
-
-```
-main.py                  # Orchestrator (now with rule extraction)
-├─ stem_agent.py        # Strategy generation & improvement
-├─ test_generator.py    # Test generation with rule hints
-├─ code_fixer.py        # Code fixing with rule context
-├─ rule_extractor.py    # ⭐ NEW: Rule extraction & storage
-├─ evaluator.py         # Score calculation
-├─ memory.py            # Error memory + clustering
-├─ error_memory.json    # Persistent error log
-└─ learned_rules.json   # ⭐ NEW: Persistent rule database
-
-test_rule_learning.py   # ⭐ NEW: Demonstrates rule learning
-README.md               # Setup & metrics guide
-```
-
----
+- add a validation step for learned rules
+- improve the score explanation in the dashboard
+- batch repeated LLM calls so runs are faster
+- add a clearer live/fallback indicator in the UI
+- test the same approach on a second domain
 
 ## Conclusion
 
-The STEM agent framework is **architecture-complete** with **learning layer operational**. The system demonstrates:
-
-- ✅ **Architectural soundness**: Self-contained learning loop with proper error handling
-- ✅ **Incremental knowledge**: Rules accumulate and influence future generations
-- ✅ **Convergence path**: Score improvement trajectory visible after 5+ iterations
-
-**Gap**: Faster convergence requires higher API quota or cheaper model. Current setup is proof-of-concept; production would benefit from:
-- Batch rule extraction (fewer API calls)
-- Caching similar failures (reuse rules without LLM)
-- Structured rule templates (faster LLM parsing)
-
-**Status for submission**: Ready as research prototype; learning phenomena clearly demonstrated; path to production clear.
+The project works best when the system has one clear spec, a way to remember failures, and a way to reuse that memory later. That is the main result: the agent is not just running tests, it is slowly learning from them.
